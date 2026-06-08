@@ -3552,4 +3552,20 @@ document.getElementById('btnInvite').onclick=doInvite;
   if(!botUsername)botUsername=await apiBotUsername();
 })();
 
+// ===== DAILY STREAK =====
+// Награда за заходы по дням подряд (локально, без сети). Раз в календарный день.
+function dayStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
+(function(){
+  const today=dayStr(new Date());
+  let s;try{s=JSON.parse(localStorage.getItem('gv_streak')||'{}')}catch(e){s={}}
+  if(s.date===today)return;
+  const y=new Date();y.setDate(y.getDate()-1);
+  s.streak=(s.date===dayStr(y))?(s.streak||0)+1:1;
+  s.date=today;
+  const bonus=Math.min(s.streak,7)*15; // день 1 = 15 ... день 7+ = 105
+  totalCoins+=bonus;localStorage.setItem('gv_coins',totalCoins);
+  localStorage.setItem('gv_streak',JSON.stringify(s));
+  setTimeout(()=>showAchPopup({icon:'🔥',name:'День '+s.streak+' подряд',desc:'+'+bonus+' монет за вход'}),600);
+})();
+
 requestAnimationFrame(loop);

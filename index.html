@@ -93,6 +93,18 @@ html,body{width:100%;height:100%;overflow:hidden;background:#87CEEB;font-family:
 <script>
 // ===== TMA =====
 const TG=window.Telegram?.WebApp;if(TG){TG.ready();TG.expand()}
+// ===== LEADERBOARD API =====
+// URL воркера Cloudflare после деплоя (без слэша на конце). Пусто => только локально.
+const LB_API='';
+function tgInitData(){try{return TG?.initData||''}catch(e){return''}}
+async function apiSubmitScore(s){
+  if(!LB_API||!tgInitData())return null;
+  try{const r=await fetch(LB_API+'/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tgInitData(),score:s})});return r.ok?await r.json():null}catch(e){return null}
+}
+async function apiFetchTop(){
+  if(!LB_API)return null;
+  try{const q=tgInitData()?('?initData='+encodeURIComponent(tgInitData())):'';const r=await fetch(LB_API+'/top'+q);return r.ok?await r.json():null}catch(e){return null}
+}
 function haptic(t){if(!vibOn)return;try{TG?.HapticFeedback?.impactOccurred(t||'light')}catch(e){}}
 function tgAlert(m){try{TG?.showAlert(m)}catch(e){alert(m)}}
 function tgUser(){try{const u=TG?.initDataUnsafe?.user;return u?{id:u.id,name:u.first_name||'Аноним'}:null}catch(e){return null}}
@@ -2752,15 +2764,19 @@ window.addEventListener('keydown',e=>{
 
 // ===== LEADERBOARD =====
 function getLB(){try{return JSON.parse(localStorage.getItem('gv_lb')||'[]')}catch(e){return[]}}
-function saveLB(s){const u=tgUser();let lb=getLB();lb.push({n:u?.name||'Игрок',s,d:Date.now()});lb.sort((a,b)=>b.s-a.s);lb=lb.slice(0,10);localStorage.setItem('gv_lb',JSON.stringify(lb))}
+function saveLB(s){const u=tgUser();let lb=getLB();lb.push({n:u?.name||'Игрок',s,d:Date.now()});lb.sort((a,b)=>b.s-a.s);lb=lb.slice(0,10);localStorage.setItem('gv_lb',JSON.stringify(lb));apiSubmitScore(s)}
+function renderLBList(list){
+  const el=document.getElementById('lbl');el.innerHTML='';
+  if(!list||!list.length){el.innerHTML='<div style="color:#aaa;font-size:8px;padding:20px">Пока пусто!</div>';return}
+  list.forEach((e,i)=>{const m=['🥇','🥈','🥉'];const d=document.createElement('div');d.className='le';d.innerHTML=`<span class="lr">${m[i]||(i+1)+'.'}</span><span class="ln">${e.n}</span><span class="ls">${e.s}</span>`;el.appendChild(d)});
+}
 function showLB(){
-  const lb=getLB(),el=document.getElementById('lbl');el.innerHTML='';
-  if(!lb.length)el.innerHTML='<div style="color:#aaa;font-size:8px;padding:20px">Пока пусто!</div>';
-  else lb.forEach((e,i)=>{const m=['🥇','🥈','🥉'];const d=document.createElement('div');d.className='le';d.innerHTML=`<span class="lr">${m[i]||(i+1)+'.'}</span><span class="ln">${e.n}</span><span class="ls">${e.s}</span>`;el.appendChild(d)});
+  renderLBList(getLB());
   document.getElementById('splash').style.display='none';
   document.getElementById('go').classList.remove('active');
   document.getElementById('lb').classList.add('active');
   document.getElementById('overlay').classList.remove('hidden');
+  apiFetchTop().then(res=>{if(res&&res.top)renderLBList(res.top)});
 }
 
 // ===== BUTTONS =====

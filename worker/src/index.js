@@ -23,6 +23,12 @@ const MAX_AGE = 24 * 60 * 60;
 const WEEK_TTL = 60 * 24 * 60 * 60;
 const REF_REWARD = 100;   // монет пригласившему за каждого друга
 const INVITE_BONUS = 50;  // монет новому игроку за вход по ссылке
+// Анти-чит для /score (для дружеской игры — без серверной симуляции):
+const MAX_SCORE = 100000; // абсолютный потолок очков
+const MAX_RATE = 300;     // очков/сек: потолок счёта по заявленной длительности
+const MAX_DUR = 3600;     // сек: потолок длительности сессии
+const SCORE_GRACE = 500;  // допуск к очкам (в т.ч. чтобы dur=0 давал кэп 500)
+const TIME_GRACE = 15;    // сек: допуск к рассинхрону часов
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -150,6 +156,19 @@ export default {
       if (!user) return json({ error: 'unauthorized' }, 401);
 
       const score = Math.max(0, Math.floor(Number(body.score) || 0));
+      const dur = Math.max(0, Math.min(MAX_DUR, Math.floor(Number(body.dur) || 0)));
+
+      // Анти-чит: потолок, привязка очков к длительности, длительности — к
+      // реально прошедшему времени между отправками.
+      if (score > MAX_SCORE) return json({ error: 'implausible' }, 422);
+      if (score > MAX_RATE * dur + SCORE_GRACE) return json({ error: 'implausible' }, 422);
+      const lastKey = `lastscore:${user.id}`;
+      const lastTs = parseInt((await env.KV.get(lastKey)) || '0', 10) || 0;
+      if (lastTs && dur > 0 && dur > (Date.now() - lastTs) / 1000 + TIME_GRACE) {
+        return json({ error: 'implausible' }, 422);
+      }
+      await env.KV.put(lastKey, String(Date.now()));
+
       const weekKey = `${TOP_KEY}:${isoWeekId(new Date())}`;
       const all = await upsertTop(env, TOP_KEY, user, score, 0);
       await upsertTop(env, weekKey, user, score, WEEK_TTL);

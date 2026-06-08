@@ -4,9 +4,9 @@ const TG=window.Telegram?.WebApp;if(TG){TG.ready();TG.expand()}
 // URL воркера Cloudflare после деплоя (без слэша на конце). Пусто => только локально.
 const LB_API='https://dmnew-leaderboard.dmitry-gviskar.workers.dev';
 function tgInitData(){try{return TG?.initData||''}catch(e){return''}}
-async function apiSubmitScore(s){
+async function apiSubmitScore(s,dur){
   if(!LB_API||!tgInitData())return null;
-  try{const r=await fetch(LB_API+'/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tgInitData(),score:s})});return r.ok?await r.json():null}catch(e){return null}
+  try{const r=await fetch(LB_API+'/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tgInitData(),score:s,dur:Math.round(dur||0)})});return r.ok?await r.json():null}catch(e){return null}
 }
 async function apiFetchTop(period){
   if(!LB_API)return null;
@@ -2160,7 +2160,7 @@ function gameOver(){
   // Save coins
   totalCoins+=G.sessionCoins;
   localStorage.setItem('gv_coins',totalCoins);
-  saveLB(G.score);
+  saveLB(G.score,sessionTime);
   achStats.bestScore=Math.max(achStats.bestScore||0,G.score);
   achStats.longestGame=Math.max(achStats.longestGame||0,sessionTime);
   achStats.maxLevel=Math.max(achStats.maxLevel||0,G.level);
@@ -2694,7 +2694,7 @@ window.addEventListener('keydown',e=>{
 
 // ===== LEADERBOARD =====
 function getLB(){try{return JSON.parse(localStorage.getItem('gv_lb')||'[]')}catch(e){return[]}}
-function saveLB(s){const u=tgUser();let lb=getLB();lb.push({n:u?.name||'Игрок',s,d:Date.now()});lb.sort((a,b)=>b.s-a.s);lb=lb.slice(0,10);localStorage.setItem('gv_lb',JSON.stringify(lb));apiSubmitScore(s)}
+function saveLB(s,dur){const u=tgUser();let lb=getLB();lb.push({n:u?.name||'Игрок',s,d:Date.now()});lb.sort((a,b)=>b.s-a.s);lb=lb.slice(0,10);localStorage.setItem('gv_lb',JSON.stringify(lb));apiSubmitScore(s,dur)}
 function renderLBList(list){
   const el=document.getElementById('lbl');el.innerHTML='';
   if(!list||!list.length){el.innerHTML='<div style="color:#aaa;font-size:8px;padding:20px">Пока пусто!</div>';return}

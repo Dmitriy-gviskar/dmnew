@@ -2168,6 +2168,7 @@ function gameOver(){
   achStats.totalCoinsEarned=(achStats.totalCoinsEarned||0)+G.sessionCoins;
   if(sessionBadCaught===0&&G.score>=50)achStats.cleanGames=(achStats.cleanGames||0)+1;
   checkAchievements();
+  syncCloudPush();
   // Start cutscene timer
   G.cutsceneT=0;
   G.cutsceneDone=false;
@@ -3494,6 +3495,7 @@ function showShop(){
       setUpgrade(up.key,lvl+1);
       achStats.upgradesBought=(achStats.upgradesBought||0)+1;
       checkAchievements();
+      syncCloudPush();
       sfxCatch();showShop();
     };
     el.appendChild(d);
@@ -3546,6 +3548,7 @@ document.getElementById('btnInvite').onclick=doInvite;
     refInvites=res.invites||0;updateInviteBtn();
     if(res.claimed>0){
       totalCoins+=res.claimed;localStorage.setItem('gv_coins',totalCoins);
+      syncCloudPush();
       tgAlert('Бонус за друзей: +'+res.claimed+' монет!');
     }
   }
@@ -3553,9 +3556,9 @@ document.getElementById('btnInvite').onclick=doInvite;
 })();
 
 // ===== DAILY STREAK =====
-// Награда за заходы по дням подряд (локально, без сети). Раз в календарный день.
+// Награда за заходы по дням подряд (локально). Раз в календарный день.
 function dayStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')}
-(function(){
+function runDailyStreak(){
   const today=dayStr(new Date());
   let s;try{s=JSON.parse(localStorage.getItem('gv_streak')||'{}')}catch(e){s={}}
   if(s.date===today)return;
@@ -3566,6 +3569,44 @@ function dayStr(d){return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,
   totalCoins+=bonus;localStorage.setItem('gv_coins',totalCoins);
   localStorage.setItem('gv_streak',JSON.stringify(s));
   setTimeout(()=>showAchPopup({icon:'🔥',name:'День '+s.streak+' подряд',desc:'+'+bonus+' монет за вход'}),600);
-})();
+}
+
+// ===== CLOUD SYNC (Telegram CloudStorage) =====
+// Аддитивный синк прогресса между устройствами. localStorage — рабочее
+// хранилище; облако мёрджится монотонно (рекорд/монеты/апгрейды/ачивки — по
+// максимуму, unlocked — объединением, стрик — по более поздней дате) и пушится
+// в ключевых точках (загрузка, конец игры, покупка). Вне Telegram — no-op.
+const CLOUD_KEY='gv_cloud';
+const SYNC_KEYS=['gv_coins','gv_hi','gv_ach','gv_unlocked','gv_streak','up_life','up_wide','up_pow','up_slow','up_coin'];
+function cloudReady(){return !!(TG&&TG.CloudStorage&&TG.CloudStorage.getItem)}
+function syncCloudPush(){
+  if(!cloudReady())return;
+  const b={};SYNC_KEYS.forEach(k=>{const v=localStorage.getItem(k);if(v!=null)b[k]=v});
+  try{TG.CloudStorage.setItem(CLOUD_KEY,JSON.stringify(b),()=>{})}catch(e){}
+}
+function cloudMaxNum(k,cv){const l=parseInt(localStorage.getItem(k)||'0',10)||0;const c=parseInt(cv||'0',10)||0;if(c>l)localStorage.setItem(k,String(c))}
+function cloudMerge(c){
+  ['gv_coins','gv_hi','up_life','up_wide','up_pow','up_slow','up_coin'].forEach(k=>{if(c[k]!=null)cloudMaxNum(k,c[k])});
+  if(c.gv_ach){let cl=null;try{cl=JSON.parse(c.gv_ach)}catch(e){}
+    if(cl){const loc=loadAchStats();Object.keys(cl).forEach(f=>{
+      if(f==='caughtTypes')loc.caughtTypes=Object.assign({},cl.caughtTypes||{},loc.caughtTypes||{});
+      else if(typeof cl[f]==='number')loc[f]=Math.max(loc[f]||0,cl[f]);
+      else if(loc[f]==null)loc[f]=cl[f];
+    });saveAchStats(loc);achStats=loc;}}
+  if(c.gv_unlocked){let cl=[];try{cl=JSON.parse(c.gv_unlocked)||[]}catch(e){}
+    const arr=[...new Set([...loadUnlocked(),...cl])];saveUnlocked(arr);achUnlocked=arr;}
+  if(c.gv_streak){let cl=null,loc={};try{cl=JSON.parse(c.gv_streak)}catch(e){}try{loc=JSON.parse(localStorage.getItem('gv_streak')||'{}')}catch(e){}
+    if(cl&&(!loc.date||(cl.date||'')>loc.date))localStorage.setItem('gv_streak',JSON.stringify(cl));}
+  totalCoins=parseInt(localStorage.getItem('gv_coins')||'0',10)||0;
+}
+function syncCloudPull(done){
+  if(!cloudReady()){done&&done();return}
+  try{TG.CloudStorage.getItem(CLOUD_KEY,(err,val)=>{
+    if(!err&&val){try{cloudMerge(JSON.parse(val))}catch(e){}}
+    done&&done();
+  })}catch(e){done&&done()}
+}
+// Загрузка: облако -> локаль -> дневной стрик на смёрдженных данных -> push.
+syncCloudPull(function(){runDailyStreak();syncCloudPush()});
 
 requestAnimationFrame(loop);

@@ -1,18 +1,21 @@
 // Cloudflare Worker: общий лидерборд игры "Денис Михалыч".
 //
 // Привязки окружения (см. wrangler.toml / wrangler secret):
-//   KV        — KV namespace, хранит ключ "top" с топ-100 как JSON.
+//   KV        — KV namespace. Ключи: "top" (за всё время) и
+//               "top:<ISO-неделя>" (недельный, с авто-истечением).
 //   BOT_TOKEN — секрет, токен бота Telegram для валидации initData.
 //
 // Эндпоинты:
-//   POST /score  { initData, score }  — валидирует подпись, обновляет личный
-//                                        максимум игрока, возвращает место.
-//   GET  /top    [?initData=...]       — топ-10; если передан initData,
-//                                        дополнительно возвращает rank/best.
+//   POST /score  { initData, score }       — валидирует подпись, обновляет
+//                                             личный максимум за всё время и
+//                                             за текущую неделю.
+//   GET  /top    [?period=week|all]        — топ-10 выбранного периода
+//                [&initData=...]              (+ rank/best игрока).
 
 const TOP_KEY = 'top';
-const MAX_KEEP = 100;          // сколько записей храним в KV
-const MAX_AGE = 24 * 60 * 60;  // initData не старше суток (анти-реплей)
+const MAX_KEEP = 100;             // сколько записей храним в KV
+const MAX_AGE = 24 * 60 * 60;     // initData не старше суток (анти-реплей)
+const WEEK_TTL = 60 * 24 * 60 * 60; // недельные ключи живут 60 дней
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',
@@ -37,6 +40,16 @@ async function hmac(keyBytes, msg) {
 
 function toHex(buf) {
   return [...buf].map((b) => b.toString(16).padStart(2, '0')).join('');
+}
+
+// Идентификатор ISO-недели вида "2026-W23".
+function isoWeekId(d) {
+  const date = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  const day = date.getUTCDay() || 7;
+  date.setUTCDate(date.getUTCDate() + 4 - day);
+  const yearStart = new Date(Date.UTC(date.getUTCFullYear(), 0, 1));
+  const week = Math.ceil(((date - yearStart) / 86400000 + 1) / 7);
+  return `${date.getUTCFullYear()}-W${String(week).padStart(2, '0')}`;
 }
 
 // Проверяет подпись initData по схеме Telegram WebApp.
@@ -69,13 +82,32 @@ async function verifyInitData(initData, botToken) {
   }
 }
 
+// Вставляет/обновляет личный максимум игрока в списке под ключом key.
+async function upsertTop(env, key, user, score, ttl) {
+  const top = JSON.parse((await env.KV.get(key)) || '[]');
+  const idx = top.findIndex((e) => e.id === user.id);
+  if (idx >= 0) {
+    top[idx].n = user.name;
+    if (score > top[idx].s) { top[idx].s = score; top[idx].d = Date.now(); }
+  } else {
+    top.push({ id: user.id, n: user.name, s: score, d: Date.now() });
+  }
+  top.sort((a, b) => b.s - a.s);
+  const trimmed = top.slice(0, MAX_KEEP);
+  await env.KV.put(key, JSON.stringify(trimmed), ttl ? { expirationTtl: ttl } : undefined);
+  return trimmed;
+}
+
 export default {
   async fetch(req, env) {
     if (req.method === 'OPTIONS') return new Response(null, { headers: CORS });
     const url = new URL(req.url);
 
     if (req.method === 'GET' && url.pathname === '/top') {
-      const top = JSON.parse((await env.KV.get(TOP_KEY)) || '[]');
+      const period = url.searchParams.get('period') === 'week' ? 'week' : 'all';
+      const key = period === 'week' ? `${TOP_KEY}:${isoWeekId(new Date())}` : TOP_KEY;
+      const top = JSON.parse((await env.KV.get(key)) || '[]');
+
       let rank = null, best = null;
       const initData = url.searchParams.get('initData');
       if (initData) {
@@ -87,7 +119,7 @@ export default {
       }
       // id игроков наружу не отдаём
       const list = top.slice(0, 10).map(({ n, s }) => ({ n, s }));
-      return json({ top: list, rank, best });
+      return json({ top: list, rank, best, period });
     }
 
     if (req.method === 'POST' && url.pathname === '/score') {
@@ -98,23 +130,15 @@ export default {
       if (!user) return json({ error: 'unauthorized' }, 401);
 
       const score = Math.max(0, Math.floor(Number(body.score) || 0));
-      const top = JSON.parse((await env.KV.get(TOP_KEY)) || '[]');
-      const idx = top.findIndex((e) => e.id === user.id);
-      if (idx >= 0) {
-        top[idx].n = user.name;
-        if (score > top[idx].s) { top[idx].s = score; top[idx].d = Date.now(); }
-      } else {
-        top.push({ id: user.id, n: user.name, s: score, d: Date.now() });
-      }
-      top.sort((a, b) => b.s - a.s);
-      const trimmed = top.slice(0, MAX_KEEP);
-      await env.KV.put(TOP_KEY, JSON.stringify(trimmed));
+      const weekKey = `${TOP_KEY}:${isoWeekId(new Date())}`;
+      const all = await upsertTop(env, TOP_KEY, user, score, 0);
+      await upsertTop(env, weekKey, user, score, WEEK_TTL);
 
-      const myIdx = trimmed.findIndex((e) => e.id === user.id);
+      const myIdx = all.findIndex((e) => e.id === user.id);
       return json({
         ok: true,
         rank: myIdx >= 0 ? myIdx + 1 : null,
-        best: myIdx >= 0 ? trimmed[myIdx].s : score,
+        best: myIdx >= 0 ? all[myIdx].s : score,
       });
     }
 

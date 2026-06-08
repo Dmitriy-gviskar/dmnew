@@ -8,9 +8,9 @@ async function apiSubmitScore(s){
   if(!LB_API||!tgInitData())return null;
   try{const r=await fetch(LB_API+'/score',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tgInitData(),score:s})});return r.ok?await r.json():null}catch(e){return null}
 }
-async function apiFetchTop(){
+async function apiFetchTop(period){
   if(!LB_API)return null;
-  try{const q=tgInitData()?('?initData='+encodeURIComponent(tgInitData())):'';const r=await fetch(LB_API+'/top'+q);return r.ok?await r.json():null}catch(e){return null}
+  try{const q='?period='+(period||'all')+(tgInitData()?('&initData='+encodeURIComponent(tgInitData())):'');const r=await fetch(LB_API+'/top'+q);return r.ok?await r.json():null}catch(e){return null}
 }
 function haptic(t){if(!vibOn)return;try{TG?.HapticFeedback?.impactOccurred(t||'light')}catch(e){}}
 function tgAlert(m){try{TG?.showAlert(m)}catch(e){alert(m)}}
@@ -2692,13 +2692,17 @@ function renderLBList(list){
   if(!list||!list.length){el.innerHTML='<div style="color:#aaa;font-size:8px;padding:20px">Пока пусто!</div>';return}
   list.forEach((e,i)=>{const m=['🥇','🥈','🥉'];const d=document.createElement('div');d.className='le';d.innerHTML=`<span class="lr">${m[i]||(i+1)+'.'}</span><span class="ln">${e.n}</span><span class="ls">${e.s}</span>`;el.appendChild(d)});
 }
+let lbPeriod='week';
+function refreshLB(){
+  apiFetchTop(lbPeriod).then(res=>{if(res&&res.top)renderLBList(res.top)});
+}
 function showLB(){
   renderLBList(getLB());
   document.getElementById('splash').style.display='none';
   document.getElementById('go').classList.remove('active');
   document.getElementById('lb').classList.add('active');
   document.getElementById('overlay').classList.remove('hidden');
-  apiFetchTop().then(res=>{if(res&&res.top)renderLBList(res.top)});
+  refreshLB();
 }
 
 // ===== BUTTONS =====
@@ -3431,6 +3435,11 @@ document.getElementById('btnSh').onclick=()=>{
 };
 document.getElementById('btnLB').onclick=showLB;
 document.getElementById('btnLG').onclick=showLB;
+document.querySelectorAll('.lbtab').forEach(b=>b.onclick=()=>{
+  lbPeriod=b.dataset.period;
+  document.querySelectorAll('.lbtab').forEach(x=>x.classList.toggle('on',x===b));
+  renderLBList([]);refreshLB();
+});
 document.getElementById('btnBk').onclick=()=>{
   document.getElementById('lb').classList.remove('active');
   if(G.state==='gameover')document.getElementById('go').classList.add('active');

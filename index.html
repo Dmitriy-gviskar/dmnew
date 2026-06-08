@@ -105,7 +105,7 @@ let actx;
 function ensA(){if(!actx)actx=new(window.AudioContext||window.webkitAudioContext)();if(actx.state==='suspended')actx.resume()}
 function tn(f,d,t,v){if(!sndOn)return;ensA();const o=actx.createOscillator(),g=actx.createGain();o.type=t||'square';o.frequency.value=f;g.gain.value=v||.1;g.gain.exponentialRampToValueAtTime(.001,actx.currentTime+d);o.connect(g);g.connect(actx.destination);o.start();o.stop(actx.currentTime+d)}
 function sfxCatch(){tn(440,.06,'square',.1);setTimeout(()=>tn(660,.05,'square',.08),40);setTimeout(()=>tn(880,.06,'square',.07),80)}
-function sfxBreak(){tn(200,.15,'sawtooth',.18);tn(120,.2,'noise'||'sawtooth',.12);setTimeout(()=>tn(80,.25,'sawtooth',.1),80)}
+function sfxBreak(){tn(200,.15,'sawtooth',.18);tn(120,.2,'sawtooth',.12);setTimeout(()=>tn(80,.25,'sawtooth',.1),80)}
 function sfxCombo(){tn(800,.06,'square',.1);setTimeout(()=>tn(1000,.06,'square',.1),60);setTimeout(()=>tn(1200,.08,'square',.12),120)}
 function sfxGO(){[260,210,160,110].forEach((f,i)=>setTimeout(()=>tn(f,.3,'triangle',.11),i*170))}
 function sfxStart(){[380,480,620,780].forEach((f,i)=>setTimeout(()=>tn(f,.07,'square',.08),i*65))}

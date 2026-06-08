@@ -464,6 +464,21 @@ const ACHIEVEMENTS=[
   // --- Мета ---
   {id:'games10',name:'Завсегдатай',desc:'Сыграй 10 игр',icon:'🎮',check:s=>(s.gamesPlayed||0)>=10},
   {id:'games50',name:'Ветеран',desc:'Сыграй 50 игр',icon:'🎖️',check:s=>(s.gamesPlayed||0)>=50},
+  {id:'games100',name:'Старожил',desc:'Сыграй 100 игр',icon:'🏅',check:s=>(s.gamesPlayed||0)>=100},
+  // --- Длинный хвост ---
+  {id:'catch5000',name:'Не остановить',desc:'Поймай 5000 предметов (всего)',icon:'🏭',check:s=>s.totalCaught>=5000},
+  {id:'score10000',name:'Полубог',desc:'Набери 10000 очков',icon:'⚜️',check:s=>s.bestScore>=10000},
+  {id:'combo50',name:'Запределье',desc:'Набери комбо x50',icon:'🌌',check:s=>s.maxCombo>=50},
+  {id:'lvl15',name:'Пятнашка',desc:'Доберись до 15 уровня',icon:'🛰️',check:s=>(s.maxLevel||0)>=15},
+  {id:'lvl20',name:'Космос',desc:'Доберись до 20 уровня',icon:'🪐',check:s=>(s.maxLevel||0)>=20},
+  {id:'boss5',name:'Боссолом',desc:'Победи 5 боссов',icon:'☠️',check:s=>(s.bossKills||0)>=5},
+  {id:'boss15',name:'Гроза боссов',desc:'Победи 15 боссов',icon:'👹',check:s=>(s.bossKills||0)>=15},
+  {id:'kilka100',name:'Килька-король',desc:'Поймай 100 банок кильки',icon:'🐠',check:s=>(s.kilkaCaught||0)>=100},
+  {id:'vodka100',name:'В дрова',desc:'Поймай 100 рюмок',icon:'🍶',check:s=>(s.shotsCaught||0)>=100},
+  {id:'marathon300',name:'Железный',desc:'Продержись 300 секунд',icon:'⛓️',check:s=>s.longestGame>=300},
+  {id:'clean10',name:'Кристальный',desc:'10 чистых игр',icon:'💠',check:s=>s.cleanGames>=10},
+  {id:'rich2000',name:'Олигарх',desc:'Накопи 2000 монет',icon:'💰',check:s=>(s.totalCoinsEarned||0)>=2000},
+  {id:'power50',name:'Бонус-магнат',desc:'Собери 50 бонусов',icon:'🎁',check:s=>(s.powersUsed||0)+(s.shieldsUsed||0)+(s.slowsUsed||0)>=50},
 ];
 
 // Load/save achievements

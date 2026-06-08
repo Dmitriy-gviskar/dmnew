@@ -95,7 +95,7 @@ html,body{width:100%;height:100%;overflow:hidden;background:#87CEEB;font-family:
 const TG=window.Telegram?.WebApp;if(TG){TG.ready();TG.expand()}
 // ===== LEADERBOARD API =====
 // URL воркера Cloudflare после деплоя (без слэша на конце). Пусто => только локально.
-const LB_API='';
+const LB_API='https://dmnew-leaderboard.dmitry-gviskar.workers.dev';
 function tgInitData(){try{return TG?.initData||''}catch(e){return''}}
 async function apiSubmitScore(s){
   if(!LB_API||!tgInitData())return null;

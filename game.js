@@ -12,6 +12,14 @@ async function apiFetchTop(period){
   if(!LB_API)return null;
   try{const q='?period='+(period||'all')+(tgInitData()?('&initData='+encodeURIComponent(tgInitData())):'');const r=await fetch(LB_API+'/top'+q);return r.ok?await r.json():null}catch(e){return null}
 }
+async function apiPost(path){
+  if(!LB_API||!tgInitData())return null;
+  try{const r=await fetch(LB_API+path,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({initData:tgInitData()})});return r.ok?await r.json():null}catch(e){return null}
+}
+async function apiBotUsername(){
+  if(!LB_API)return'';
+  try{const r=await fetch(LB_API+'/bot');if(!r.ok)return'';return (await r.json()).username||''}catch(e){return''}
+}
 function haptic(t){if(!vibOn)return;try{TG?.HapticFeedback?.impactOccurred(t||'light')}catch(e){}}
 function tgAlert(m){try{TG?.showAlert(m)}catch(e){alert(m)}}
 function tgUser(){try{const u=TG?.initDataUnsafe?.user;return u?{id:u.id,name:u.first_name||'Аноним'}:null}catch(e){return null}}
@@ -3504,5 +3512,44 @@ document.getElementById('btnShopBk').onclick=()=>{
   if(G.state==='gameover')document.getElementById('go').classList.add('active');
   else document.getElementById('splash').style.display='flex';
 };
+
+// ===== REFERRALS =====
+let botUsername='';
+let refInvites=0;
+function updateInviteBtn(){
+  const b=document.getElementById('btnInvite');
+  if(b)b.textContent=refInvites>0?('🤝 ПОЗВАТЬ ДРУГА ('+refInvites+')'):'🤝 ПОЗВАТЬ ДРУГА';
+}
+async function doInvite(){
+  const uid=tgUser()?.id;
+  if(!uid){tgAlert('Открой игру в Telegram, чтобы звать друзей');return}
+  if(!botUsername)botUsername=await apiBotUsername();
+  if(!botUsername){tgAlert('Реферальная ссылка пока недоступна');return}
+  const link='https://t.me/'+botUsername+'?startapp=ref'+uid;
+  const text='Лови еду ртом за Дениса Михалыча! Заходи — +50 монет на старте.';
+  const share='https://t.me/share/url?url='+encodeURIComponent(link)+'&text='+encodeURIComponent(text);
+  haptic('light');
+  if(TG?.openTelegramLink)TG.openTelegramLink(share);else tgAlert(link);
+}
+document.getElementById('btnInvite').onclick=doInvite;
+
+// Атрибуция реферала при первом заходе по ссылке + зачисление накопленных бонусов.
+(async()=>{
+  if(!LB_API||!tgInitData())return;
+  const sp=TG?.initDataUnsafe?.start_param||'';
+  if(/^ref\d+$/.test(sp)&&!localStorage.getItem('gv_ref_sent')){
+    localStorage.setItem('gv_ref_sent','1');
+    await apiPost('/ref');
+  }
+  const res=await apiPost('/claim');
+  if(res){
+    refInvites=res.invites||0;updateInviteBtn();
+    if(res.claimed>0){
+      totalCoins+=res.claimed;localStorage.setItem('gv_coins',totalCoins);
+      tgAlert('Бонус за друзей: +'+res.claimed+' монет!');
+    }
+  }
+  if(!botUsername)botUsername=await apiBotUsername();
+})();
 
 requestAnimationFrame(loop);
